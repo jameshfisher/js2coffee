@@ -43,6 +43,13 @@
   *
   * ***** END LICENSE BLOCK ***** */
 
+/* Helper functions for shitty JS failings */
+
+function className(obj) {
+	if (typeof obj != "object" || obj === null) return false;
+	return /(\w+)\(/.exec(obj.constructor.toString())[1];
+	}
+
 
 var narcissus = {};
 
@@ -1190,7 +1197,485 @@ narcissus.jsparse = jsparse;
 sys = require("sys");
 fs = require("fs");
 
-tree2coffee = function(tree) {
+function ungroup_condition(t) {
+	if (t.condition.type == jsdef.GROUP) {
+		// don't need to group a whole condition
+		t.condition = t.condition[0];
+		}
+	}
+
+
+/* Helper parsing functions */
+
+function listChildren(from, me) {
+	var into = [];
+	for(var i = 0; i < from.length; i++) {
+		into.push(t2o(from[i], me));
+		}
+	return into;
+	}
+
+/* Constructors */
+
+function JsSemicolon() {}
+function JsAssign() {}
+function JsHook() {}
+function JsOr() {}
+function JsAnd() {}
+function JsStrictEq() {}
+function JsStrictNe() {}
+function JsLt() {}
+function JsGt() {}
+function JsPlus() {}
+function JsMul() {}
+function JsNot() {}
+function JsUnaryMinus() {}
+function JsDot() {}
+function JsScript() {}
+function JsBlock() {}
+function JsCall() {}
+function JsArrayInit() {}
+function JsObjectInit() {}
+function JsPropertyInit() {}
+function JsGroup() {}
+function JsIdentifier() {}
+function JsNumber() {}
+function JsString() {}
+function JsFalse() {}
+function JsFor() {}
+function JsFunction() {}
+function JsIf() {}
+function JsNull() {}
+function JsReturn() {}
+function JsThis() {}
+function JsTrue() {}
+function JsVar() {}
+function JsWhile() {}
+
+
+/* Parse the massive tree into objects, which are more code-readable */
+
+JsPlus.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsMul.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsNot.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.condition = t2o(t[0], this);
+	}
+JsUnaryMinus.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.number = t2o(t[0], this);
+	}
+JsDot.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.object = t2o(t[0], this);
+	this.property = t2o(t[1], this);
+	}
+JsScript.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.lines = listChildren(t, this);
+	/* MESSY! */
+	for(var i = 0; i < this.lines.length; i++) {
+		if (className(this.lines[i]) == "JsFunction"
+			&& this.lines[i].name == "function") {
+			var func = this.lines[i];
+			this.lines[i] = (function(name,func){
+				this.parent = parent;
+				this.identifier = (function(parent, value){
+					this.parent = parent;
+					this.value = value;
+					})(this, name);
+				this.value = func;
+				})(func.name, func);
+			}
+		}
+	}
+JsSemicolon.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.expression = t2o(t.expression, this);
+	}
+JsAssign.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.identifier = t2o(t[0], this);
+	this.operator = t.value == "=" ? ": " : " " + t.value + "= ";
+	this.value = t2o(t[1], this);
+	}
+JsHook.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.condition = t2o(t[0], this);
+	this.affirmative = t2o(t[1], this);
+	this.negative = t2o(t[2], this);
+	}
+JsOr.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsAnd.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsStrictEq.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsStrictNe.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsLt.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsGt.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsBlock.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.lines = listChildren(t, this);
+	}
+JsCall.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.simple = typeof this.parent == JsSemicolon;
+	this.identifier = t2o(t[0], this);
+	this.args = listChildren(t[1], this);
+	}
+JsArrayInit.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.elements = listChildren(t, this);
+	}
+JsObjectInit.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.properties = listChildren(t, this);
+	}
+JsPropertyInit.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.key = t2o(t[0], this);
+	this.value = t2o(t[1], this);
+	}
+JsGroup.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.inside = t2o(t[0], this);
+	}
+JsIdentifier.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.simple = this.parent ? this.parent.simple : false;
+	this.initializer = t.initializer ? t2o(t.initializer, this) : false;
+	this.value = t.value;
+	}
+JsNumber.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.value = t.value;
+	}
+JsString.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.value = t.value;
+	}
+JsFunction.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.params = t.params.toString().split(",");
+	this.body = t2o(t.body, this);
+	this.name = t.name;
+	}
+JsIf.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.condition = t2o(t.condition, this);
+	this.block = t2o(t.thenPart, this);
+	}
+JsNull.prototype.init = function(t, parent) {
+	this.parent = parent;
+	}
+JsReturn.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.noreturn = (t.value == "return");
+	if (!this.noreturn) {
+		this.value = t2o(t.value, this);
+		}
+	}
+JsThis.prototype.init = function(t, parent) {
+	this.parent = parent;
+	}
+JsTrue.prototype.init = function(t, parent) {
+	this.parent = parent;
+	}
+JsFalse.prototype.init = function(t, parent) {
+	this.parent = parent;
+	}
+JsFor.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.setup = t2o(t.setup, this);
+	this.update = t2o(t.update, this);
+	this.block = t2o(t.body, this);
+	}
+JsVar.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.vars = listChildren(t, this);
+	}
+JsWhile.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.condition = t2o(t.condition, this);
+	this.block = t2o(t.body, this);
+	}
+
+t2o = function(tree, parent) {
+	// Tree to objects
+	sys.puts(tree.type);
+	sys.puts(tree.toString().slice(0, 150));
+	var n = new {
+		2: JsSemicolon,
+		4: JsAssign,
+		5: JsHook,
+		8: JsOr,
+		9: JsAnd,
+		15: JsStrictEq,
+		16: JsStrictNe,
+		17: JsLt,
+		20: JsGt,
+		24: JsPlus,
+		26: JsMul,
+		29: JsNot,
+		32: JsUnaryMinus,
+		35: JsDot,
+		42: JsScript,
+		43: JsBlock,
+		46: JsCall,
+		49: JsArrayInit,
+		50: JsObjectInit,
+		51: JsPropertyInit,
+		54: JsGroup,
+		56: JsIdentifier,
+		57: JsNumber,
+		58: JsString,
+		71: JsFalse,
+		73: JsFor,
+		74: JsFunction,
+		75: JsIf,
+		79: JsNull,
+		80: JsReturn,
+		82: JsThis,
+		84: JsTrue,
+		87: JsVar,
+		89: JsWhile,
+		}[tree.type]()
+	n.init(tree, parent);
+	return n;
+	}
+
+/* Helper printing functions */
+
+function indent(s) {
+	return "\n  " + s.trim().replace(/\n/g, "\n  ") + "\n";
+	}
+
+function coffeeList(list) {
+	var s = [];
+	for(var i = 0; i < list.length; i++) {
+		s.push(list[i].coffee());
+		}
+	return s;
+	}
+
+function conditional(affirmative, negative, obj) {
+	var kw = affirmative;
+	var c = obj.condition;
+	if (className(c) == "JsNot") {
+		kw = negative;
+		c = c.condition;
+		}
+	if( className(c) == "JsGroup") {
+		c = c.inside;
+		}
+	
+	return obj.block.lines.length == 1 ? obj.block.coffee().trim() + " " + kw + " " + c.coffee() + "\n" : kw + " " + c.coffee() + indent(obj.block.coffee());
+	}
+
+/* Printing the parse tree as CoffeeScript */
+
+JsPlus.prototype.coffee = function() {
+	return this.left.coffee() + " + " + this.right.coffee();
+	}
+JsMul.prototype.coffee = function() {
+	return this.left.coffee() + " * " + this.right.coffee();
+	}
+JsNot.prototype.coffee = function() {
+	return "not " + this.condition;
+	}
+JsUnaryMinus.prototype.coffee = function() {
+	return "-" + this.number.coffee();
+	}
+JsDot.prototype.coffee = function() {
+	if(		className(this.object) == "JsThis"
+		&&  className(this.property) != "JsFunction") {
+		return "@" + this.property.coffee();
+		}
+	return this.object.coffee() + "." + this.property.coffee();
+	}
+JsScript.prototype.coffee = function() {
+	return coffeeList(this.lines).join('');
+	}
+JsSemicolon.prototype.coffee = function() {
+	return this.expression.coffee() + "\n";
+	}
+JsAssign.prototype.coffee = function() {
+	return this.identifier.coffee() + this.operator + this.value.coffee();
+	}
+JsHook.prototype.coffee = function() {
+	return "if " + this.condition.coffee() + " then " + this.affirmative.coffee() + (className(this.parent) == "JsSemicolon" ? "" : " else " + this.negative.coffee());
+	}
+JsOr.prototype.coffee = function() {
+	var bits = [];
+	if(!(    className(this.parent) == "JsAssign"
+		&& className(this.parent.identifier) == "JsIdentifier"
+		&& className(this.left) == "JsIdentifier"
+		&& this.left.value == this.parent.identifier.value)) {
+		bits.push(this.left.coffee());
+		}
+	bits.push("or");
+	bits.push(this.right.coffee());
+	return bits.join(' ');
+	}
+JsAnd.prototype.coffee = function() {
+	return this.left.coffee() + " and " + this.right.coffee();
+	}
+JsStrictEq.prototype.coffee = function() {
+	return this.left.coffee() + " is " + this.right.coffee();
+	}
+JsStrictNe.prototype.coffee = function() {
+	return this.left.coffee() + " isnt " + this.right.coffee();
+	}
+JsLt.prototype.coffee = function() {
+	return this.left.coffee() + " < " + this.right.coffee();
+	}
+JsGt.prototype.coffee = function() {
+	return this.left.coffee() + " > " + this.right.coffee();
+	}
+JsBlock.prototype.coffee = function() {
+	return coffeeList(this.lines).join('');
+	}
+JsCall.prototype.coffee = function() {
+	var s = this.identifier.coffee();
+	var args = coffeeList(this.args).join(", ");
+	if (className(this.parent) != "JsSemicolon" || this.args.length == 0) {
+		args = "(" + args + ")";
+		}
+	else {
+		args = " " + args;
+		}
+	return s + args;
+	}
+JsArrayInit.prototype.coffee = function() {	
+	return "[" + coffeeList(this.elements).join(", ") + "]";
+	}
+JsObjectInit.prototype.coffee = function() {	
+	return "{" + coffeeList(this.properties).join(", ") + "}";
+	}
+JsPropertyInit.prototype.coffee = function() {
+	return this.key.coffee() + ": " + this.value.coffee();
+	}
+JsGroup.prototype.coffee = function() {
+	return "(" + this.inside.coffee() + ")";
+	}
+JsIdentifier.prototype.coffee = function() {
+	s = this.value;
+	if (className(this.parent) == "JsVar") {
+		s += ": ";
+		s += this.initializer ? this.initializer.coffee() : "null";
+		}
+	
+	return s;
+	}
+JsNumber.prototype.coffee = function() {
+	return this.value.toString();
+	}
+JsString.prototype.coffee = function() {
+	val = this.value.toString();
+	if (val.indexOf('"') == -1) {
+		// If there are no double quotes,
+		// use them
+		return '"' + val + '"';
+		}
+	else if (val.indexOf("'") == -1) {
+		// Otherwise, try single quotes 
+		return "'" + val + "'";
+		}
+	// And if even that's awkward, escape the single chars.
+	return "'" + val.replace(/'/g, "\\'") + "'";
+	}
+JsFunction.prototype.coffee = function() {	
+	var s = "";
+	
+	if (this.params.length > 0) {
+		s += "(" + this.params.join(", ") + ") ";
+		}
+	
+	s += "-> ";
+	
+	s += this.body.lines.length > 1 ? indent(this.body.coffee()) : this.body.coffee();
+	
+	return s;
+	}
+JsIf.prototype.coffee = function() {
+	return conditional("if", "unless", this);
+	}
+JsThis.prototype.coffee = function() {
+	return "this";
+	}
+JsTrue.prototype.coffee = function() {
+	return "true";
+	}
+JsFalse.prototype.coffee = function() {
+	return "false";
+	}
+JsFor.prototype.coffee = function() {
+	return "[FORLOOP]";
+	}
+JsNull.prototype.coffee = function() {
+	return "null";
+	}
+JsReturn.prototype.coffee = function() {
+	if(this.noreturn) {
+		return "return\n";
+		}
+	
+	var s = "";
+	
+	if(this != this.parent.lines[this.parent.lines.length-1]) {
+		// If we're not last, we have to explicitly return
+		s += "return ";
+		}
+	
+	s += this.value.coffee();
+	
+	return s + "\n";
+	}
+JsVar.prototype.coffee = function() {
+	s = "";
+	for(var i=0; i < this.vars.length; i++) {
+		s += this.vars[i].coffee() + "\n";
+		}
+	return s;
+	}
+
+JsWhile.prototype.coffee = function() {
+	return conditional("while", "until", this);
+	}
+
+/* OLD */
+
+t2c = function(tree) {
 	if(!tree) {
 		return "";
 		}
@@ -1203,20 +1688,23 @@ tree2coffee = function(tree) {
 					if (tree[i].type == jsdef.FUNCTION) {
 						tree[i].declaration = true;
 						}
-					s += tree2coffee(tree[i]);
+					s += t2c(tree[i]);
 					}
 				return s;
 				break;
 			case jsdef.SEMICOLON:
-				return tree2coffee(tree['expression']) + "\n";
+				if (tree.expression && tree.expression.type == jsdef.CALL) {
+					tree.expression.simple = true;
+					}
+				return t2c(tree.expression) + "\n";
 				break;
 			case jsdef.ASSIGN:
-				return tree2coffee(tree["0"]) + ": " + tree2coffee(tree[1]);
+				return t2c(tree[0]) + ": " + t2c(tree[1]);
 				break;
 			case jsdef.IDENTIFIER:
 				s = tree.value;
 				if ("initializer" in tree) {
-					s += ": " + tree2coffee(tree.initializer);
+					s += ": " + t2c(tree.initializer);
 					}
 				else if(tree.variableIdentifier) {
 					s += ": null";
@@ -1228,27 +1716,35 @@ tree2coffee = function(tree) {
 				if (tree.declaration) {
 					s = tree.name + ": "
 					}
-				s += "(" + tree["params"] + ") -> ";
+				if (tree.params != "") {
+					s += "(" + (tree["params"]+'').replace(/,/g, ", ") + ") ";
+					}
+				s += "-> ";
 				if(tree.body.length > 1) {
 					// indent
-					s += "\n  " + tree2coffee(tree["body"]).replace(/[\n]/g, "\n  ");
+					s += "\n  " + t2c(tree["body"]).replace(/[\n]/g, "\n  ");
 					}
 				else {
-					s += tree2coffee(tree["body"]);
+					s += t2c(tree["body"]);
 					}
 				return s;
 				break;
 			case jsdef.RETURN:
-				return /*"return " + */tree2coffee(tree['value']);
+				if (tree['value']+'' == 'return') {
+					return "return";
+					}
+				else {
+					return t2c(tree['value']);
+					}
 				break;
 			case jsdef.MUL:
-				return tree2coffee(tree["0"]) + " * " + tree2coffee(tree["1"]);
+				return t2c(tree["0"]) + " * " + t2c(tree["1"]);
 				break;
 			case jsdef.VAR:
 				s = "";
 				for(var i=0; i < tree.length; i++) {
 					tree[i].variableIdentifier = true;
-					s += tree2coffee(tree[i]) + "\n";
+					s += t2c(tree[i]) + "\n";
 					}
 				return s;
 				break;
@@ -1261,7 +1757,7 @@ tree2coffee = function(tree) {
 			case jsdef.ARRAY_INIT:
 				var s = "[";
 				for(var i =0; i < tree.length; i++) {
-					s += tree2coffee(tree[i]);
+					s += t2c(tree[i]);
 					if (i != tree.length -1) { s += ", "; }
 					}
 				s += "]";
@@ -1270,49 +1766,137 @@ tree2coffee = function(tree) {
 			case jsdef.OBJECT_INIT:
 				var s = "{";
 				for(var i = 0; i < tree.length; i++) {
-					s += tree2coffee(tree[i]);
+					s += t2c(tree[i]);
 					if (i != tree.length -1) { s += ", "; }
 					}
 				s += "}";
 				return s;
 				break;
 			case jsdef.PROPERTY_INIT:
-				return tree2coffee(tree[0]) + ": " + tree2coffee(tree[1]);
+				return t2c(tree[0]) + ": " + t2c(tree[1]);
 				break;
 			case jsdef.UNARY_MINUS:
-				return "-" + tree2coffee(tree[0]);
+				return "-" + t2c(tree[0]);
 				break;
 			case jsdef.CALL:
-				return tree[0].value + tree2coffee(tree[1]);
+				tree[1].simple = tree.simple;
+				return s = t2c(tree[0]) + t2c(tree[1]);
+				break;
+			case jsdef.NEW_WITH_ARGS:
+				return s = "new " + t2c(tree[0]) + t2c(tree[1]);
 				break;
 			case jsdef.LIST:
-				var s = "(";
+				var s = "";
 				for(var i = 0; i < tree.length; i++) {
-					s += tree2coffee(tree[i]);
+					s += t2c(tree[i]);
 					if (i != tree.length -1) { s += ", "; }
 					}
-				s += ")";
+				if(! tree.simple) { s = "(" + s + ")"; }
+				else { s = " " + s; }
 				return s;
 				break;
 			case jsdef.IF:
-				return "if " + tree2coffee(tree.condition) + "\n  " + tree2coffee(tree.thenPart).replace(/[\n]/g, "\n  ");
+				ungroup_condition(tree);
+				return "if " + t2c(tree.condition) + "\n  " + t2c(tree.thenPart).replace(/[\n]/g, "\n  ");
 			case jsdef.BLOCK:
 				var s = ""
 				for(var i = 0; i < tree.length; i++) {
-					s += tree2coffee(tree[i])
+					s += t2c(tree[i])
 					}
 				return s;
 				break;
 			case jsdef.AND:
-				return tree2coffee(tree[0]) + " and " + tree2coffee(tree[1]);
+				return t2c(tree[0]) + " and " + t2c(tree[1]);
 				break;
 			case jsdef.OR:
-				return tree2coffee(tree[0]) + " or " + tree2coffee(tree[1]);
+				return t2c(tree[0]) + " or " + t2c(tree[1]);
 				break;
 			case jsdef.HOOK:
-				return "if " + tree2coffee(tree[0]) + " then " + tree2coffee(tree[1]) + " else " + tree2coffee(tree[2]);
+				return "if " + t2c(tree[0]) + " then " + t2c(tree[1]) + " else " + t2c(tree[2]);
+			case jsdef.WHILE:
+				kw = "while";
+				if (tree.condition.type == jsdef.NOT) {
+					// make it an "until" loop
+					kw = "until";
+					tree.condition = tree.condition[0];
+					}
+				ungroup_condition(tree);
+				if (tree.body.length == 1) {
+					return t2c(tree.body).replace(/\n$/, '') + " " + kw +  " " + t2c(tree.condition) + "\n"
+					}
+				else {
+					return kw + " " + t2c(tree.condition) + "\n  " + t2c(tree.body).replace(/[\n]/g, "\n  ");
+					}
+				break;
+			
+			case jsdef.STRICT_EQ:
+				return t2c(tree[0]) + " == " + t2c(tree[1]);
+				break;
+			case jsdef.GT:
+				return t2c(tree[0]) + " > " + t2c(tree[1]);
+				break;
+			case jsdef.LT:
+				return t2c(tree[0]) + " < " + t2c(tree[1]);
+				break;
+			case jsdef.LE:
+				return t2c(tree[0]) + " <= " + t2c(tree[1]);
+				break;
+			case jsdef.GE:
+				return t2c(tree[0]) + " >= " + t2c(tree[1]);
+				break;
+			case jsdef.NOT:
+				return " not " + t2c(tree[0]);
+				break;
+			case jsdef.GROUP:
+				return "(" + t2c(tree[0]) + ")";
+				break;
+			case jsdef.DOT:
+				if (tree[0].type == jsdef.THIS) {
+					return "@" + t2c(tree[1]);
+					}
+				else {
+					return t2c(tree[0]) + "." + t2c(tree[1]);
+					}
+				break;
+			case jsdef.THIS:
+				return "this";
+				break;
+			case jsdef.PLUS:
+				return t2c(tree[0]) + " + " + t2c(tree[1]);
+				break;
+			case jsdef.FOR:
+				ungroup_condition(tree);
+				if (tree.setup.type == jsdef.ASSIGN) {
+					tmp = tree.setup;
+					tree.setup = new Object();
+					tree.setup.type = jsdef.SEMICOLON;
+					tree.setup.expression = tmp;
+					}
+				if (tree.update.type != jsdef.SEMICOLON) {
+					tmp = tree.update;
+					tree.update = new Object();
+					tree.update.type = jsdef.SEMICOLON;
+					tree.update.expression = tmp;
+					}
+				return t2c(tree.setup) + "while " + t2c(tree.condition) + "\n  " + t2c(tree.body).replace(/[\n]/g, "\n  ") + t2c(tree.update) + "\n";
+				break;
+			case jsdef.FOR_IN:
+				return "for " + t2c(tree.iterator) + " in " + t2c(tree.object) + "\n  " + t2c(tree.body).replace(/[\n]/g, "\n  ");
+				break;
+			case jsdef.INCREMENT:
+				return t2c(tree[0]) + "++";
+				break;
+			case jsdef.NULL:
+				return "null";
+				break;
+			case jsdef.IN:
+				return t2c(tree[0]) + " in " + t2c(tree[1]);
+				break;
+			case jsdef.INDEX:
+				return t2c(tree[0]) + "[" + t2c(tree[1]) + "]";
+				break;
 			default:
-				return "[!UNKNOWN "+tree.type+"!]";
+				throw "[!UNKNOWN "+tree.type+"!]";
 				break;
 			}
 		}
@@ -1323,12 +1907,16 @@ outfile = "out.coffee";
 
 fs.readFile(infile, function(err, file) {
 jstree = jsparse(file, infile, 0);
-coffee = tree2coffee(jstree);
+objects = t2o(jstree);
+
 sys.puts(jstree);
 sys.puts("---");
+
+sys.puts(objects.coffee());
+/*
 sys.puts(coffee);
 fs.writeFile(outfile, coffee, function(err){
 	if(err) throw err;
 	//sys.puts("Saved to " + outfile);
-	});
+	});*/
 });
