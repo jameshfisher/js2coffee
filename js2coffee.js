@@ -1218,6 +1218,7 @@ function listChildren(from, me) {
 /* Constructors */
 
 function JsSemicolon() {}
+function JsComma() {}
 function JsAssign() {}
 function JsHook() {}
 function JsOr() {}
@@ -1230,10 +1231,12 @@ function JsPlus() {}
 function JsMul() {}
 function JsNot() {}
 function JsUnaryMinus() {}
+function JsIncrement() {}
 function JsDot() {}
 function JsScript() {}
 function JsBlock() {}
 function JsCall() {}
+function JsIndex() {}
 function JsArrayInit() {}
 function JsObjectInit() {}
 function JsPropertyInit() {}
@@ -1251,6 +1254,53 @@ function JsThis() {}
 function JsTrue() {}
 function JsVar() {}
 function JsWhile() {}
+
+t2o = function(tree, parent) {
+	// Tree to objects
+	sys.puts(tree.type);
+	sys.puts(tree.toString().slice(0, 150));
+	var n = new {
+		2: JsSemicolon,
+		3: JsComma,
+		4: JsAssign,
+		5: JsHook,
+		8: JsOr,
+		9: JsAnd,
+		15: JsStrictEq,
+		16: JsStrictNe,
+		17: JsLt,
+		20: JsGt,
+		24: JsPlus,
+		26: JsMul,
+		29: JsNot,
+		32: JsUnaryMinus,
+		33: JsIncrement,
+		35: JsDot,
+		42: JsScript,
+		43: JsBlock,
+		46: JsCall,
+		48: JsIndex,
+		49: JsArrayInit,
+		50: JsObjectInit,
+		51: JsPropertyInit,
+		54: JsGroup,
+		56: JsIdentifier,
+		57: JsNumber,
+		58: JsString,
+		71: JsFalse,
+		73: JsFor,
+		74: JsFunction,
+		75: JsIf,
+		79: JsNull,
+		80: JsReturn,
+		82: JsThis,
+		84: JsTrue,
+		87: JsVar,
+		89: JsWhile,
+		}[tree.type]()
+	n.init(tree, parent);
+	return n;
+	}
 
 
 /* Parse the massive tree into objects, which are more code-readable */
@@ -1270,6 +1320,10 @@ JsNot.prototype.init = function(t, parent) {
 	this.condition = t2o(t[0], this);
 	}
 JsUnaryMinus.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.number = t2o(t[0], this);
+	}
+JsIncrement.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.number = t2o(t[0], this);
 	}
@@ -1300,6 +1354,10 @@ JsScript.prototype.init = function(t, parent) {
 JsSemicolon.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.expression = t2o(t.expression, this);
+	}
+JsComma.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.lines = listChildren(t, this);
 	}
 JsAssign.prototype.init = function(t, parent) {
 	this.parent = parent;
@@ -1352,6 +1410,11 @@ JsCall.prototype.init = function(t, parent) {
 	this.simple = typeof this.parent == JsSemicolon;
 	this.identifier = t2o(t[0], this);
 	this.args = listChildren(t[1], this);
+	}
+JsIndex.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.identifier = t2o(t[0], this);
+	this.index = t2o(t[1], this);
 	}
 JsArrayInit.prototype.init = function(t, parent) {
 	this.parent = parent;
@@ -1430,49 +1493,6 @@ JsWhile.prototype.init = function(t, parent) {
 	this.block = t2o(t.body, this);
 	}
 
-t2o = function(tree, parent) {
-	// Tree to objects
-	sys.puts(tree.type);
-	sys.puts(tree.toString().slice(0, 150));
-	var n = new {
-		2: JsSemicolon,
-		4: JsAssign,
-		5: JsHook,
-		8: JsOr,
-		9: JsAnd,
-		15: JsStrictEq,
-		16: JsStrictNe,
-		17: JsLt,
-		20: JsGt,
-		24: JsPlus,
-		26: JsMul,
-		29: JsNot,
-		32: JsUnaryMinus,
-		35: JsDot,
-		42: JsScript,
-		43: JsBlock,
-		46: JsCall,
-		49: JsArrayInit,
-		50: JsObjectInit,
-		51: JsPropertyInit,
-		54: JsGroup,
-		56: JsIdentifier,
-		57: JsNumber,
-		58: JsString,
-		71: JsFalse,
-		73: JsFor,
-		74: JsFunction,
-		75: JsIf,
-		79: JsNull,
-		80: JsReturn,
-		82: JsThis,
-		84: JsTrue,
-		87: JsVar,
-		89: JsWhile,
-		}[tree.type]()
-	n.init(tree, parent);
-	return n;
-	}
 
 /* Helper printing functions */
 
@@ -1516,6 +1536,9 @@ JsNot.prototype.coffee = function() {
 JsUnaryMinus.prototype.coffee = function() {
 	return "-" + this.number.coffee();
 	}
+JsIncrement.prototype.coffee = function() {
+	return this.number.coffee() + "++";
+	}
 JsDot.prototype.coffee = function() {
 	if(		className(this.object) == "JsThis"
 		&&  className(this.property) != "JsFunction") {
@@ -1528,6 +1551,9 @@ JsScript.prototype.coffee = function() {
 	}
 JsSemicolon.prototype.coffee = function() {
 	return this.expression.coffee() + "\n";
+	}
+JsComma.prototype.coffee = function() {
+	return coffeeList(this.lines).join('');
 	}
 JsAssign.prototype.coffee = function() {
 	return this.identifier.coffee() + this.operator + this.value.coffee();
@@ -1575,6 +1601,9 @@ JsCall.prototype.coffee = function() {
 		args = " " + args;
 		}
 	return s + args;
+	}
+JsIndex.prototype.coffee = function() {
+	return this.identifier.coffee() + "[" + this.index.coffee() + "]";
 	}
 JsArrayInit.prototype.coffee = function() {	
 	return "[" + coffeeList(this.elements).join(", ") + "]";
