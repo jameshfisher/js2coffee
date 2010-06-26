@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /* Machine translation of JavaScript -> CoffeeScript.
  * 
  * Parser based on cross-browser Javascript parser by Guillaume Lathaud,
