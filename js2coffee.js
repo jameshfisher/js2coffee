@@ -1259,8 +1259,9 @@ function JsWhile() {}
 
 t2o = function(tree, parent) {
 	// Tree to objects
-	sys.puts(tree.type);
-	sys.puts(tree.toString().slice(0, 150));
+	//sys.puts(tree.type);
+	//sys.puts(tree.toString().slice(0, 150));
+    
 	var n = new {
 		2: JsSemicolon,
 		3: JsComma,
@@ -1307,52 +1308,47 @@ t2o = function(tree, parent) {
 
 /* Parse the massive tree into objects, which are more code-readable */
 
-JsPlus.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.left = t2o(t[0], this);
-	this.right = t2o(t[1], this);
-	}
-JsMul.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.left = t2o(t[0], this);
-	this.right = t2o(t[1], this);
-	}
-JsNot.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.condition = t2o(t[0], this);
-	}
-JsUnaryMinus.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.number = t2o(t[0], this);
-	}
-JsIncrement.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.number = t2o(t[0], this);
-	}
-JsDot.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.object = t2o(t[0], this);
-	this.property = t2o(t[1], this);
-	}
-JsScript.prototype.init = function(t, parent) {
-	this.parent = parent;
-	this.lines = listChildren(t, this);
-	/* MESSY! */
-	for(var i = 0; i < this.lines.length; i++) {
-		if (className(this.lines[i]) == "JsFunction"
-			&& this.lines[i].name == "function") {
-			var func = this.lines[i];
-			this.lines[i] = (function(name,func){
-				this.parent = parent;
-				this.identifier = (function(parent, value){
-					this.parent = parent;
-					this.value = value;
-					})(this, name);
-				this.value = func;
-				})(func.name, func);
-			}
-		}
-	}
+
+var schema = {
+    "JsSemicolon": ["expression"],
+    "JsComma": ["lines"],
+    "JsAssign": ["identifier", "value"],
+    "JsHook": ["condition", "affirmative", "negative"],
+    "JsOr": ["left", "right"],
+    "JsAnd": ["left", "right"],
+    "JsStrictEq": ["left", "right"],
+    "JsStrictNe": ["left", "right"],
+    "JsLt": ["left", "right"],
+    "JsGt": ["left", "right"],
+    "JsPlus": ["left", "right"],
+    "JsMul": ["left", "right"],
+    "JsNot": ["condition"],
+    "JsUnaryMinus": ["number"],
+    "JsIncrement": ["number"],
+    "JsDot": ["object", "property"],
+    "JsScript": [],
+    "JsBlock": [],
+    "JsCall": ["callee"],
+    "JsIndex": ["identifier", "index"],
+    "JsArrayInit": [],
+    "JsObjectInit": [],
+    "JsPropertyInit": ["key", "value"],
+    "JsGroup": ["inside"],
+    "JsIdentifier": ["initializer", "value"],
+    "JsNumber": [],
+    "JsString": [],
+    "JsFalse": [],
+    "JsFor": ["setup", "condition", "update", "block"],
+    "JsFunction": ["body"],
+    "JsIf": ["condition", "block"],
+    "JsNull": [],
+    "JsReturn": ["value"],
+    "JsThis": [],
+    "JsTrue": [],
+    "JsVar": [],
+    "JsWhile": ["condition", "block"],
+    }
+
 JsSemicolon.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.expression = t2o(t.expression, this);
@@ -1403,6 +1399,53 @@ JsGt.prototype.init = function(t, parent) {
 	this.left = t2o(t[0], this);
 	this.right = t2o(t[1], this);
 	}
+
+JsPlus.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsMul.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.left = t2o(t[0], this);
+	this.right = t2o(t[1], this);
+	}
+JsNot.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.condition = t2o(t[0], this);
+	}
+JsUnaryMinus.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.number = t2o(t[0], this);
+	}
+JsIncrement.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.number = t2o(t[0], this);
+	}
+JsDot.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.object = t2o(t[0], this);
+	this.property = t2o(t[1], this);
+	}
+JsScript.prototype.init = function(t, parent) {
+	this.parent = parent;
+	this.lines = listChildren(t, this);
+	/* MESSY! */
+	for(var i = 0; i < this.lines.length; i++) {
+		if (className(this.lines[i]) == "JsFunction"
+			&& this.lines[i].name == "function") {
+			var func = this.lines[i];
+			this.lines[i] = (function(name,func){
+				this.parent = parent;
+				this.identifier = (function(parent, value){
+					this.parent = parent;
+					this.value = value;
+					})(this, name);
+				this.value = func;
+				})(func.name, func);
+			}
+		}
+	}
 JsBlock.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.lines = listChildren(t, this);
@@ -1410,7 +1453,7 @@ JsBlock.prototype.init = function(t, parent) {
 JsCall.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.simple = typeof this.parent == JsSemicolon;
-	this.identifier = t2o(t[0], this);
+	this.callee = t2o(t[0], this);
 	this.args = listChildren(t[1], this);
 	}
 JsIndex.prototype.init = function(t, parent) {
@@ -1482,6 +1525,7 @@ JsFalse.prototype.init = function(t, parent) {
 JsFor.prototype.init = function(t, parent) {
 	this.parent = parent;
 	this.setup = t2o(t.setup, this);
+    this.condition = t2o(t.condition, this);
 	this.update = t2o(t.update, this);
 	this.block = t2o(t.body, this);
 	}
@@ -1494,6 +1538,109 @@ JsWhile.prototype.init = function(t, parent) {
 	this.condition = t2o(t.condition, this);
 	this.block = t2o(t.body, this);
 	}
+
+/* pre-printing transforms */
+
+
+function JsNodeToCs(n) {
+    var nodeTransforms = {
+        "JsScript": JsScriptToCs,
+        "JsBlock": JsBlockToCs,
+        "JsArray": JsArrayToCs,
+        "JsObject": JsObjectToCs,
+        "JsFor": JsForToCs,
+        "JsComma": JsCommaToCs,
+        "JsVar": JsVarToCs,
+        }
+    c = className(n);
+    if (c in nodeTransforms) {
+        return nodeTransforms[c](n);
+        }
+    
+    if (c in schema) {
+        props = schema[c];
+        for (var i = 0; i < props.length; i++) {
+            prop = props[i];
+            n[prop] = JsNodeToCs(n[prop]);
+            }
+        }
+    
+    return n;
+    }
+
+
+function JsScriptToCs(n) {
+    for (var i = 0; i < n.lines.length; i++) {
+        n.lines[i] = JsNodeToCs(n.lines[i]);
+        }
+    return n;
+    }
+
+function JsBlockToCs(n) {
+    for (var i = 0; i < n.lines.length; i++) {
+        n.lines[i] = JsNodeToCs(n.lines[i]);
+        }
+    return n;
+    }
+
+function JsArrayToCs(n) {
+    for (var i = 0; i < n.elements.length; i++) {
+        n.elements[i] = JsNodeToCs(n.elements[i]);
+        }
+    return n;
+    }
+
+function JsObjectToCs(n) {
+    for (var i = 0; i < n.properties.length; i++) {
+        n.properties[i] = JsNodeToCs(n.properties[i]);
+        }
+    return n;
+    }
+
+function JsVarToCs(n) {
+    for (var i = 0; i < n.vars.length; i++) {
+        n.vars[i] = JsNodeToCs(n.vars[i]);
+        }
+    return n;
+    }
+
+function JsForToCs(n) {
+    /* No for loop -- convert to a while loop.  Returns a block.
+     */
+    
+    n.setup = JsNodeToCs(n.setup);
+    n.condition = JsNodeToCs(n.condition);
+    n.update = JsNodeToCs(n.update);
+    n.block = JsNodeToCs(n.block);
+    
+    var b = new JsBlock();
+    b.parent = n.parent;
+    b.lines = [n.setup];
+    
+    var w = new JsWhile();
+    
+    w.parent = n.parent;
+    w.condition = n.condition;
+    w.block = n.block;
+    w.block.lines.push(n.update);
+    
+    b.lines.push(w);
+    
+    return b;
+    }
+
+function JsCommaToCs(n) {
+    var b = new JsBlock();
+    b.parent = n.parent;
+    b.lines = [];
+    for(var i = 0; i < n.lines.length; i++) {
+        var s = new JsSemicolon();
+        s.parent = b;
+        s.expression = n.lines[i];
+        b.lines.push(s);
+        }
+    return b;
+    }
 
 
 /* Helper printing functions */
@@ -1594,7 +1741,7 @@ JsBlock.prototype.coffee = function() {
 	return coffeeList(this.lines).join('');
 	}
 JsCall.prototype.coffee = function() {
-	var s = this.identifier.coffee();
+	var s = this.callee.coffee();
 	var args = coffeeList(this.args).join(", ");
 	if (className(this.parent) != "JsSemicolon" || this.args.length == 0) {
 		args = "(" + args + ")";
@@ -1939,8 +2086,9 @@ outfile = "out.coffee";
 fs.readFile(infile, function(err, file) {
 jstree = jsparse(file, infile, 0);
 objects = t2o(jstree);
+objects = JsNodeToCs(objects);
 
-sys.puts(jstree);
+//sys.puts(jstree);
 sys.puts("---");
 
 sys.puts(objects.coffee());
