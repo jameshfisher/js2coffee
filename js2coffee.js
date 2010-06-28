@@ -1367,50 +1367,6 @@ narcissus2object = function(tree, parent) {
 /* Parse the massive tree into objects, which are more code-readable */
 
 
-var schema = {
-    "JsSemicolon": ["expression"],
-    "JsComma": ["lines"],
-    "JsAssign": ["identifier", "value"],
-    "JsHook": ["condition", "affirmative", "negative"],
-    "JsOr": ["left", "right"],
-    "JsAnd": ["left", "right"],
-    "JsStrictEq": ["left", "right"],
-    "JsStrictNe": ["left", "right"],
-    "JsLt": ["left", "right"],
-    "JsGt": ["left", "right"],
-    "JsPlus": ["left", "right"],
-    "JsMinus": ["left", "right"],
-    "JsMul": ["left", "right"],
-    "JsNot": ["condition"],
-    "JsUnaryMinus": ["number"],
-    "JsIncrement": ["number"],
-    "JsDot": ["object", "property"],
-    "JsScript": [],
-    "JsBlock": [],
-    "JsCall": ["callee"],
-    "JsIndex": ["identifier", "index"],
-    "JsArrayInit": [],
-    "JsObjectInit": [],
-    "JsPropertyInit": ["key", "value"],
-    "JsGroup": ["inside"],
-    "JsIdentifier": ["initializer", "value"],
-    "JsNumber": [],
-    "JsString": [],
-    "JsCatch": ["block", "varName"],
-    "JsFalse": [],
-    "JsFor": ["setup", "condition", "update", "block"],
-    "JsFunction": ["body"],
-    "JsIf": ["condition", "thenPart", "elsePart"],
-    "JsNull": [],
-    "JsReturn": ["value"],
-    "JsThis": [],
-    "JsTypeOf": ["expression"],
-    "JsTrue": [],
-    "JsTry": ["tryBlock", "finallyBlock"],
-    "JsVar": [],
-    "JsWhile": ["condition", "block"],
-    }
-
 function leftAndRightInit(t, parent) {
     this.parent = parent;
     this.left = narcissus2object(t[0], this);
@@ -1580,7 +1536,6 @@ JsCatch.prototype.init = function(t, parent) {
     }
 JsCase.prototype.init = function(t, parent) {
     this.parent = parent;
-    //this.defaultCase = false;
     this.caseLabel = narcissus2object(t.caseLabel, this);
     this.block = narcissus2object(t.statements, this);
     this.varName = t.varName;
@@ -1629,12 +1584,6 @@ JsSwitch.prototype.init = function(t, parent) {
     for(var i = 0; i < t.cases.length; i++) {
         this.cases.push(narcissus2object(t.cases[i], this));
         }
-    /*this.defaultCase = false;
-    if (t.defaultIndex != -1) {
-        this.defaultCase = this.cases[t.defaultIndex];
-        this.defaultCase.defaultCase = true;
-        this.cases.splice(t.defaultIndex,1);
-        }*/
     }
 
 JsOr.prototype.init = leftAndRightInit;
@@ -1685,13 +1634,11 @@ function JsNodeToCs(n) {
         return nodeTransforms[c](n);
         }
     
-    if (c in schema) {
-        props = schema[c];
-        for (var i = 0; i < props.length; i++) {
-            prop = props[i];
-            n[prop] = JsNodeToCs(n[prop]);
-            }
+    for (prop in n) {
+      if (prop != "parent" && prop != 0) {
+        n[prop] = JsNodeToCs(n[prop]);
         }
+      }
     
     return n;
     }
@@ -1829,13 +1776,11 @@ function normalizeBlocks(n) {
         n.lines = newLines;
         }
     else {
-        if (c in schema) {
-            props = schema[c];
-            for (var i = 0; i < props.length; i++) {
-                prop = props[i];
-                normalizeBlocks(n[prop]);
-                }
+        for (prop in n) {
+          if (prop != "parent" && prop != 0) {
+            normalizeBlocks(n[prop]);
             }
+          }
         }
     }
 
@@ -2156,9 +2101,9 @@ JsIf.prototype.coffee = function() {
             c = c.inside;
             }
         
-        return  className(this.thenBlock) != "JsBlock" || this.thenBlock.lines.length == 1 ?                                      // If suitable for single line
-                this.thenBlock.coffee().trim() + " " + kw + " " + c.coffee() + "\n" :   // Single-line syntax
-                kw + " " + c.coffee() + indent(this.thenBlock.coffee());                // Multiple-line
+        return  className(this.thenBlock) != "JsBlock" || this.thenBlock.lines.length == 1 ?  // If suitable for single line
+                this.thenBlock.coffee().trim() + " " + kw + " " + c.coffee() + "\n" :         // Single-line syntax
+                kw + " " + c.coffee() + indent(this.thenBlock.coffee());                      // Multiple-line
         }
     }
 
@@ -2253,21 +2198,10 @@ JsSwitch.prototype.coffee = function() {
     for(var i = 0; i < this.cases.length; i++) {
         s += this.cases[i].coffee();
         }
-    /*if (this.defaultCase) {
-        s += this.defaultCase.coffee();
-        }*/
     return s;
     }
 
 JsCase.prototype.coffee = function() {
-    /*if(this.defaultCase) {
-        if (this.block.lines.length > 1) {
-            return "else" + indent(this.block.coffee());
-            }
-        else {
-            return "else " + this.block.coffee().trim();
-            }
-        }*/
         
     var s = "when " + this.caseLabel.coffee()
     if (this.block.lines.length > 1) {
@@ -2293,7 +2227,7 @@ outfile = "out.coffee";
 
 fs.readFile(infile, function(err, file) {
 jstree = jsparse(file, infile, 0);
-//sys.puts(jstree);
+sys.puts(jstree);
 objects = narcissus2object(jstree);
 objects = JsNodeToCs(objects);
 normalizeBlocks(objects);
