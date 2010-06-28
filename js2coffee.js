@@ -1423,7 +1423,7 @@ JsScript.prototype.init = function(t, parent) {
     this.parent = parent;
     this.lines = listChildren(t, this);
     /* MESSY! */
-    for(var i = 0; i < this.lines.length; i++) {
+    /*for(var i = 0; i < this.lines.length; i++) {
         if (className(this.lines[i]) == "JsFunction"
             && this.lines[i].name == "function") {
             var func = this.lines[i];
@@ -1436,7 +1436,7 @@ JsScript.prototype.init = function(t, parent) {
                 this.value = func;
                 })(func.name, func);
             }
-        }
+        }*/
     }
 JsBlock.prototype.init = function(t, parent) {
     this.parent = parent;
@@ -1652,7 +1652,7 @@ function JsScriptToCs(n) {
     }
 
 function JsFunctionToCs(n) {
-    if (n.name != "function") {
+    if (n.name != "function" && (className(n.parent) == "JsScript" || className(n.parent) == "JsBlock")) { // function declaration
         var ass = new JsAssign();
         ass.parent = n.parent;
         var id = new JsIdentifier();
@@ -1661,6 +1661,8 @@ function JsFunctionToCs(n) {
         ass.identifier = id;
         ass.value = n;
         ass.operator = ": ";
+        n.name = "function";
+        n.body = JsNodeToCs(n.body);
         return ass;
         }
     return n;
