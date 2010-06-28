@@ -1292,10 +1292,6 @@ function JsWhile        () {}
 
 narcissus2object = function(tree, parent) {
     // Tree to objects
-    sys.puts(tree.type);
-    if(tree.type == "66") {
-        sys.puts(tree.toString());
-        }
     
     var n = new {
         2: JsSemicolon,
@@ -1676,6 +1672,7 @@ JsBreak.prototype.init = terminalInit;
 function JsNodeToCs(n) {
     var nodeTransforms = {
         "JsScript": JsScriptToCs,
+        "JsFunction": JsFunctionToCs,
         "JsBlock": JsBlockToCs,
         "JsArray": JsArrayToCs,
         "JsObject": JsObjectToCs,
@@ -1703,6 +1700,21 @@ function JsNodeToCs(n) {
 function JsScriptToCs(n) {
     for (var i = 0; i < n.lines.length; i++) {
         n.lines[i] = JsNodeToCs(n.lines[i]);
+        }
+    return n;
+    }
+
+function JsFunctionToCs(n) {
+    if (n.name != "function") {
+        var ass = new JsAssign();
+        ass.parent = n.parent;
+        var id = new JsIdentifier();
+        id.value = n.name;
+        id.parent = ass;
+        ass.identifier = id;
+        ass.value = n;
+        ass.operator = ": ";
+        return ass;
         }
     return n;
     }
@@ -1769,6 +1781,8 @@ function JsForToCs(n) {
     w.parent = n.parent;
     w.condition = n.condition;
     w.block = n.block;
+    
+    if(!(w.block.lines)) w.block.lines = [];
     
     if (n.update) w.block.lines.push(n.update);
     
@@ -2111,7 +2125,8 @@ JsIf.prototype.coffee = function() {
             c = c.inside;
             }
         
-        return     this.thenBlock.lines.length == 1
+        return     this.thenBlock.lines
+                && this.thenBlock.lines.length == 1
                 && className(this.elseBlock) == "JsBlock"
                 && this.elseBlock.lines.length == 1
                 
@@ -2283,7 +2298,6 @@ objects = narcissus2object(jstree);
 objects = JsNodeToCs(objects);
 normalizeBlocks(objects);
 
-sys.puts("---");
 
 sys.puts(objects.coffee());
 /*
