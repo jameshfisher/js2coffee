@@ -1238,6 +1238,7 @@ function JsNe           () {}
 function JsStrictEq     () {}
 function JsStrictNe     () {}
 function JsLt           () {}
+function JsLe           () {}
 function JsGe           () {}
 function JsGt           () {}
 function JsRightShift   () {}
@@ -1292,7 +1293,11 @@ function JsWhile        () {}
 
 narcissus2object = function(tree, parent) {
     // Tree to objects
-    
+
+    sys.puts(tree.type);   
+    if(tree.type == "18")
+      sys.puts(tree.toString());
+ 
     var n = new {
         2: JsSemicolon,
         3: JsComma,
@@ -1307,6 +1312,7 @@ narcissus2object = function(tree, parent) {
         15: JsStrictEq,
         16: JsStrictNe,
         17: JsLt,
+        18: JsLe,
         19: JsGe,
         20: JsGt,
         22: JsRightShift,
@@ -1595,6 +1601,7 @@ JsNe.prototype.init = leftAndRightInit;
 JsStrictEq.prototype.init = leftAndRightInit;
 JsStrictNe.prototype.init = leftAndRightInit;
 JsLt.prototype.init = leftAndRightInit;
+JsLe.prototype.init = leftAndRightInit;
 JsGe.prototype.init = leftAndRightInit;
 JsGt.prototype.init = leftAndRightInit;
 JsRightShift.prototype.init = leftAndRightInit;
@@ -1940,6 +1947,7 @@ JsNe.prototype.coffee = getleftAndRightCoffeeFunction("!=");
 JsStrictEq.prototype.coffee = getleftAndRightCoffeeFunction("is");
 JsStrictNe.prototype.coffee = getleftAndRightCoffeeFunction("isnt");
 JsLt.prototype.coffee = getleftAndRightCoffeeFunction("<");
+JsLe.prototype.coffee = getleftAndRightCoffeeFunction("<=");
 JsGe.prototype.coffee = getleftAndRightCoffeeFunction(">=");
 JsGt.prototype.coffee = getleftAndRightCoffeeFunction(">");
 JsMod.prototype.coffee = getleftAndRightCoffeeFunction("%");
@@ -2184,7 +2192,7 @@ JsWhile.prototype.coffee = function() {
         c = c.inside;
         }
     
-    return this.block.lines.length == 1 ? this.block.coffee().trim() + " " + kw + " " + c.coffee() + "\n" : kw + " " + c.coffee() + indent(this.block.coffee());
+    return this.block.lines && this.block.lines.length == 1 ? this.block.coffee().trim() + " " + kw + " " + c.coffee() + "\n" : kw + " " + c.coffee() + indent(this.block.coffee());
     }
 
 JsDelete.prototype.coffee = function() {
@@ -2224,15 +2232,17 @@ JsDefault.prototype.coffee = function() {
     }
 
 
+/*
 OptionParser = require("./optparse").OptionParser;
 
 parser = new OptionParser([["-i", "--in-file", "In file"], ["-o", "--out-file", "Out file"]]);
 options = parser.parse(process.argv);
 
 for(p in options["in-file"]) sys.puts(p);
+*/
 
-infile = options["in-file"];
-outfile = options["out-file"];
+infile = "orm.migrations.js";
+outfile = "orm.migrations.coffee";
 
 sys.puts(infile);
 sys.puts(outfile);
@@ -2240,7 +2250,6 @@ sys.puts(outfile);
 if (infile && outfile) {
   fs.readFile(infile, function(err, file) {
     jstree = jsparse(file, infile, 0);
-    sys.puts(jstree);
     objects = narcissus2object(jstree);
     objects = JsNodeToCs(objects);
     normalizeBlocks(objects);
@@ -2253,3 +2262,4 @@ if (infile && outfile) {
 else {
   sys.puts("Please provide -i and -o.");
   }
+
