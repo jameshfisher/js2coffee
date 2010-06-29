@@ -1952,11 +1952,11 @@ JsForIn.prototype.coffee = function() {
 JsCall.prototype.coffee = function() {
     var s = this.callee.coffee();
     var args = coffeeList(this.args).join(", ");
-    if (className(this.parent) != "JsSemicolon" || this.args.length == 0) {
-        args = "(" + args + ")";
+    if (className(this.parent) == "JsSemicolon" && args.length > 0) {
+        args = " " + args;
         }
     else {
-        args = " " + args;
+        args = "(" + args + ")";
         }
     return s + args;
     }
@@ -1964,7 +1964,7 @@ JsNewWithArgs.prototype.coffee = function() {
     return "new " + this.identifier.coffee() + this.list.coffee();
     }
 JsNew.prototype.coffee = function() {
-    return "new " + this.identifier.coffee();
+    return "new " + this.identifier.coffee() + "()";
     }
 JsIndex.prototype.coffee = function() {
     return this.identifier.coffee() + "[" + this.index.coffee() + "]";
@@ -2224,22 +2224,32 @@ JsDefault.prototype.coffee = function() {
     }
 
 
-infile = "test.js";
-outfile = "out.coffee";
+OptionParser = require("./optparse").OptionParser;
 
-fs.readFile(infile, function(err, file) {
-jstree = jsparse(file, infile, 0);
-sys.puts(jstree);
-objects = narcissus2object(jstree);
-objects = JsNodeToCs(objects);
-normalizeBlocks(objects);
+parser = new OptionParser([["-i", "--in-file", "In file"], ["-o", "--out-file", "Out file"]]);
+options = parser.parse(process.argv);
 
+for(p in options["in-file"]) sys.puts(p);
 
-sys.puts(objects.coffee());
-/*
-sys.puts(coffee);
-fs.writeFile(outfile, coffee, function(err){
-    if(err) throw err;
-    //sys.puts("Saved to " + outfile);
-    });*/
-});
+infile = options["in-file"];
+outfile = options["out-file"];
+
+sys.puts(infile);
+sys.puts(outfile);
+
+if (infile && outfile) {
+  fs.readFile(infile, function(err, file) {
+    jstree = jsparse(file, infile, 0);
+    sys.puts(jstree);
+    objects = narcissus2object(jstree);
+    objects = JsNodeToCs(objects);
+    normalizeBlocks(objects);
+    fs.writeFile(outfile, objects.coffee(), function(err){
+      if(err) throw err;
+      sys.puts("Saved to " + outfile);
+      });
+    });
+  }
+else {
+  sys.puts("Please provide -i and -o.");
+  }

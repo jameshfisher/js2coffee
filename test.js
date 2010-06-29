@@ -1,8 +1,3 @@
-function a() {
-  alert("hi");
-  }
-a()
-function b() {
-  function c() { b(); }
-  alert("B");
-  }
+a();
+b(1,2,3);
+while( b() ) {}
